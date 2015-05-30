@@ -1,0 +1,465 @@
+<html>
+<head>
+</head>
+
+<style type="text/css">
+
+	.width15{
+		width: 15px;
+	}
+	.width80{
+		width: 80px;
+	}
+	.height40{
+		height: 40px;
+	}
+	.green{
+		background: green;
+	}
+	.pink{
+		background: pink;
+	}
+
+</style>
+
+<script type="text/javascript">
+
+/*!
+2015.05.13
+编写者：韩建来
+1.实现元素的检索，包括实现类、id、标签、属性选择器的检索。
+2.简化对DOM元素的操作包括对DOM元素，style样式，属性的检索和更改。
+3.简化和封装对事件的处理。
+4.尽可能的屏蔽不同浏览器之间的差异性。（就我所知道的差异性）
+ */
+
+/*
+创建命名空间的管理方法，以此方法来管理所有的命名空间。来避免命名空间的混乱问题。
+ */
+function nameSpace(packagePath){
+	var pathArray = packagePath.split(".");
+	var namespace = window;
+
+	for(var i = 0;i < pathArray.length;i++){
+		if(!namespace[pathArray[i]]){
+			namespace[pathArray[i]] = {};
+		}
+		namespace = namespace[pathArray[i]];
+	}
+	return namespace;
+}
+
+function firstEqual(arg){
+	for(var i = 0;i < arg.length;i++){
+		if(arg.charAt(i) == "=" || arg.charAt(i) == "!"){
+			return i;
+		}
+	}
+}
+/*
+find函数实现了类、id、标签、属性选择器的检索，并返回可编辑的DOM元素即：JQuery元素，可以链式调用。
+而且实现了选择器的联合使用，其中不同的选择器之间用","相连。但是css设置中只接受形如{width:30px,}的
+json对象，不接受其他的任何形式的数据。
+  */
+function find(args){
+	var htmlEls;
+	var elArray = [];
+	var arg = args.split(",");
+
+	for(var j = 0;j < arg.length;j++){
+		if(arg[j].charAt(0) == "#"){
+		htmlEls = document.getElementById(arg[j].substr(1));
+		elArray.push(htmlEls);
+	}else if(arg[j].charAt(0) == "."){
+		for(var i = 0;i < document.all.length;i++){
+			if(arg[j].substr(1) == document.all[i].className)
+				elArray.push(document.all[i]);
+		}
+	}else if(arg[j].indexOf("]") != -1){
+	/*这里以[]]作为检索属性选择器的标志，所以在这里[]是默认的关键字只支持类似于$("[target='_blank']")
+	的形式。
+	 */
+		arrarName = arg[j].substring(1,firstEqual(arg));
+		arrarValue = arg[j].substring(arg[j].indexOf("'") + 1, arg[j].indexOf("]") - 1);
+		for(var k = 0;k < document.all.length;k++){
+			if(document.all[k].getAttribute(arrarName) == arrarValue)
+				elArray.push(document.all[k]);
+		}
+	}else{
+		htmlEls = document.getElementsByTagName(arg[j]);
+		for(var m = 0;m < htmlEls.length;m++)
+			elArray.push(htmlEls[m]);
+	}
+
+	}
+	
+	return new JQuery(elArray);
+}
+/*add函数实现了在DOM树中，插入一个元素，但是插入的元素必须是<a>aaa</a>这种形式的，
+不能添加属性或style样式之类的。但可以链式操作，设置css或获得css属性。
+ */
+function add(args){
+	var name = args.substring(args.indexOf("<") + 1, args.indexOf(">"));
+	var value = args.substring(args.indexOf(">") + 1, args.lastIndexOf("<"));
+	var elArray = [];
+	var htmlEl = document.createElement(name);
+	htmlEl.innerHTML = value;
+	document.getElementById("body").appendChild(htmlEl);
+	elArray.push(htmlEl);
+	
+	return new JQuery(elArray);
+}
+
+var JQuery = function(arg){
+	var mHtmlEls = arg;
+
+	this.getMhtmlEls = function(){
+		return mHtmlEls;
+	};
+
+	this.css = function(cssObj){
+		for(var i = 0;i < mHtmlEls.length;i++){
+			for(var p in cssObj){
+				if(mHtmlEls[i].style.hasOwnProperty(p))
+					mHtmlEls[i].style[p] = cssObj[p];
+			}
+		}
+		return this;
+	};
+
+	this.getCss = function(cssProperty){
+		var styleValue = [];
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			styleValue.push($.getStyle(mHtmlEls[i], cssProperty));
+		}
+		return styleValue.length === 1 ? styleValue[0] : styleValue;
+	};
+	/*
+	addClass方法实现了在DOM树中的DOM元素添加class属性的功能，可以添加多个class属性，但每个class
+	属性之间必须用空格分开。且返回JQuery对象，可以在对其他属性进行操作。
+	*/
+	this.addClass = function(classProperty){
+		for(var i = 0;i < mHtmlEls.length;i++){
+			var originalClass = mHtmlEls[i].className;
+			
+			if(originalClass === ""){
+				mHtmlEls[i].className = classProperty;
+			}else{
+				mHtmlEls[i].className = originalClass + " " + classProperty;
+			}
+		}
+
+		return this;
+	};
+	/*
+	removeClass实现了在DOM树中移除DOM元素的class属性的功能，但要移出的class属性之间必须用空格分开。
+	且返回JQuery对象，可以在对其他属性进行操作。
+	*/
+	this.removeClass = function(classProperty){
+		for(var i = 0;i < mHtmlEls.length;i++){
+			var originalClass = mHtmlEls[i].className;
+			
+			if(originalClass === ""){
+				
+			}else{
+				originalClass = originalClass.substring(0,originalClass.indexOf(classProperty)) + originalClass.substr(originalClass.indexOf(classProperty) + classProperty.length + 1);
+			
+				mHtmlEls[i].className = originalClass;
+			}
+		}
+
+		return this;
+	};
+	//getClass方法返回多个DOM元素的className属性。
+	this.getClass = function(){
+		var classProperty = [];
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			classProperty.push(mHtmlEls[i].className);
+		}
+
+		return classProperty;
+	};
+	//attr方法实现了向DOM元素中添加属性的操作，但必须以JSON对象的形式传递参数。
+	this.attr = function(attrObj){
+		for(var i = 0;i < mHtmlEls.length;i++){
+			for(var p in attrObj){
+				mHtmlEls[i].setAttribute(p, attrObj[p]);
+			}
+		}
+
+		return this;
+	};
+	//removeAttr实现了对DOM元素移除多个属性的操作，参数为字符串形式，属性之间以","分隔。
+	this.removeAttrs = function(nameStr){
+		var names = nameStr.split(",");
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			for(var j = 0;j < names.length;j++){
+				mHtmlEls[i].setAttribute(names[j], "");
+			}
+		}
+
+		return this;
+	};
+	//getAttrs的参数是一个属性字符串，且不同属性之间用","分隔，实现了多个属性值的获取。
+	this.getAttrs = function(nameStr){
+		var attrs = [];
+		var names = nameStr.split(",");
+		var att;
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			for(var j = 0;j < names.length;j++){
+				att = mHtmlEls[i].getAttribute(names[j]);
+				if(att !== null){
+					attrs.push(att);
+				}
+			}
+		}
+
+		return attrs;
+	};
+	/*append方法接受的参数为类似于"<h1>ni hao ma</h1>"的形式，返回的是要操作DOM元素的JQuery
+	对象，但只能向最后一个DOM元素中添加子元素。
+	 */
+	this.append = function(args){
+		var name = args.substring(args.indexOf("<") + 1, args.indexOf(">"));
+		var value = args.substring(args.indexOf(">") + 1, args.lastIndexOf("<"));
+		var htmlEl = document.createElement(name);
+
+		htmlEl.innerHTML = value;
+		for(var i = 0;i < mHtmlEls.length;i++){
+			alert("diao yong le");
+			mHtmlEls[i].appendChild(htmlEl);
+		}
+
+		return this;
+	};
+	/*
+	appendAll方法接受的参数类似于"<h1>ni hao ma</h1>"这种形式，返回值为JQuery对象，功能是向所有的
+	DOM元素的JQuery对象中添加args标签。
+	 */
+	this.appendAll = function(args){
+		for(var i = 0;i < mHtmlEls.length;i++){
+			args += mHtmlEls[i].innerHTML;
+			mHtmlEls[i].innerHTML = args;
+		}
+
+		return this;
+	};
+	/*
+	appendTo方法的参数是类似于"<h1>ni hao ma</h1>"的形式，返回值是JQuery对象，向
+	所有检索到的DOM元素的JQuery对象中添加args标签。是向标签内部插。
+	 */
+	this.appendTo = function(args){
+		var name = args.substring(args.indexOf("<") + 1, args.indexOf(">"));
+		var value = args.substring(args.indexOf(">") + 1, args.lastIndexOf("<"));
+		var htmlEl = document.createElement(name);
+		htmlEl.innerHTML = value;
+		var body = document.getElementsByTagName("body")[0];
+		body.appendChild(htmlEl);
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			htmlEl.appendChild(mHtmlEls[i]);
+		}
+
+		return this;
+	};
+	/*
+	inertAfter方法的参数为：要插入到DOM元素的查找方式，如id,标签,类等选择器的字符串形式，不同
+	选择器之间用","分隔，返回值为JQuery对象。实现了在一组DOM元素之后插入一组DOM元素的功能。
+	 */
+	this.inserAfter = function(args){
+		var htmlEls = $(args);
+
+		for(var i = 0;i < htmlEls.getMhtmlEls().length;i++){
+			var father = htmlEls.getMhtmlEls()[i].parentNode;
+			for(var j = 0;j < mHtmlEls.length;j++){
+				father.appendChild(mHtmlEls[j]);
+			}
+		}
+
+		return this;
+	};
+
+	/*
+	inertAfter方法的参数为：要插入到DOM元素的查找方式，如id,标签,类等选择器的字符串形式，不同
+	选择器之间用","分隔，返回值为JQuery对象。实现了在一组DOM元素之前插入一组DOM元素的功能。
+	 */
+	this.inserBefore = function(args){
+		var htmlEls = $(args);
+
+		for(var j = 0;j < htmlEls.getMhtmlEls().length;j++){
+			var father = htmlEls.getMhtmlEls()[j].parentNode;
+			for(var i = 0;i < mHtmlEls.length;i++){
+				father.insertBefore(mHtmlEls[i],htmlEls.getMhtmlEls()[j]);
+			}
+		}
+
+		return this;
+	};
+
+	/*
+	innerHtml方法没有参数，返回值为：得到的DOM元素innerHTML的字符串形式。     
+	 */
+	this.innerHtml = function(){
+		var inner = [];
+		var inn;
+  
+  
+		for(var i = 0;i < mHtmlEls.length;i++){
+			inn = mHtmlEls[i].innerHTML;
+			inner.push(inn);
+		}
+
+		return inner;
+	};
+	/*
+	removeAll功能是移除检索到的所有DOM元素的JQuery对象。
+	 */
+	this.removeAll = function(){
+		var body = document.getElementsByTagName("body")[0];
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			body.removeChild(mHtmlEls[i]);
+		}
+	};
+	/*
+	animateWidth方法的参数是要改变到DOM元素的宽度（数字），和到达这个宽度所要需要的时间，返回值
+	是JQuery对象；功能是根据传进的时间改变元素的宽度。
+	 */
+	this.animateWidth = function(desWidth, time){
+		var currentWidth = parseInt(this.getCss("width"));
+		var step = (desWidth - currentWidth) / $.STEP_COUNT;
+		var timeStep = time / $.STEP_COUNT;
+		var me = this;
+		var intervalId = setInterval(function(){
+			if(currentWidth >= desWidth){
+				currentWidth = desWidth;
+				me.css({
+					width : currentWidth + "px"
+				});
+				clearInterval(intervalId);
+			}
+			
+			me.css({
+				width : currentWidth + "px"
+			});
+			currentWidth += step;
+		}, timeStep);
+		
+		return this;
+	};
+	/*
+	animateHeight方法的参数是要改变到DOM元素的高度（数字），和到达这个高度所要需要的时间，返回值
+	是JQuery对象；功能是根据传进的时间改变元素的高度。
+	 */
+	this.animateHeight = function(desHeight, time){
+		var currentHeight = parseInt(this.getCss("height"));
+		var step = (desHeight - currentHeight) / $.STEP_COUNT;
+		var timeStep = time / $.STEP_COUNT;
+		var me = this;
+		var intervalId = setInterval(function(){
+			if(currentHeight >= desHeight){
+				currentHeight = desHeight;
+				me.css({
+					height : currentHeight + "px"
+				});
+				clearInterval(intervalId);
+			}
+			
+			me.css({
+				height : currentHeight + "px"
+			});
+			currentHeight += step;
+		}, timeStep);
+
+		return this;
+	};
+	/*
+	animate方法的参数为：要改变元素的style内容的JSON对象和时间；返回值是JQuery对象。
+	功能是：在给定的时间内给变DOM元素的样式。但遗憾的是单位只能是"px",只能变大不能变下。
+	*/
+	this.animate = function(cssObj,time){
+		var me = this;
+
+		for(var i = 0;i < mHtmlEls.length;i++){
+			for(var p in cssObj){
+				if(mHtmlEls[i].style.hasOwnProperty(p)){
+					var currentStyle = parseInt(this.getCss(p));
+					var target = cssObj[p];
+					target = target.substring(0,target.indexOf("p") + 1);
+					var targetStyle = parseInt(target);
+					var step = (targetStyle - currentStyle) / $.STEP_COUNT;
+					var timeStep = time / $.STEP_COUNT;
+					mHtmlEls[i].style[p] = cssObj[p];
+
+					inter(currentStyle,targetStyle,mHtmlEls[i],p,timeStep,step);
+				}
+			}
+		}
+
+		return this;
+	};
+};
+
+$.STEP_COUNT = 2000;
+
+function inter(currentStyle,targetStyle,mHtmlEls,p,timeStep,step){
+	var intervalId = setInterval(function(){
+		if(currentStyle >= targetStyle){
+			currentStyle = targetStyle;
+			mHtmlEls.style[p] = targetStyle + "px";
+			clearInterval(intervalId);
+		}
+	
+		mHtmlEls.style[p] = currentStyle + "px";
+		currentStyle += step;
+	}, timeStep);
+}
+
+/*
+	getStyle方法是为了屏蔽浏览器的差异性，ie浏览器支持currentStyle属性，而chrome，Firefox
+	支持getComputedStyle方法。
+ */
+$.getStyle = function (htmlEl, cssProperty){
+	if(window.getComputedStyle){
+		$.getStyle = function(htmlEl, cssProperty){
+			return window.getComputedStyle(htmlEl,null)[cssProperty];
+		};
+	}else{
+		$.getStyle = function(htmlEl, cssProperty){
+
+			return htmlEl.currentStyle[cssProperty];	
+		};
+	}
+	return $.getStyle(htmlEl, cssProperty);
+};
+
+function $(args){
+	if(args.indexOf("<") != -1){
+		return add(args);
+	}else{
+		return find(args);
+	}
+}
+
+function onBodyLoad(){
+	//$("p").attr({id:"pid",name:"pname",title:"shabi"});
+	//alert($("div").getAttrs("id,name"));
+	//$("div").appendTo("<h1>ni hao ma</h1>");
+	//alert($("#divId").innerHtml());
+	$("p").animate({width:"380px",height:"380px"}, 30000);
+}
+
+</script>
+
+<body id="body" onload="onBodyLoad();">
+
+<div id = "first" class="second" style="">Hello Jquery first</div>
+<div id="divId"  style="">Hello fitst id</div>
+<div target="_blank" style="">shabi</div>
+<p style="width:39px; border:1px solid black; height: 30px">this is a p</p>
+</body>
+</html>
